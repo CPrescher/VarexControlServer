@@ -32,8 +32,24 @@ def stop_acquisition(det):
     return 'Detector is not collecting', 412
 
 
+@app.route('/AllStartAcq')
+def start_acquisition_all():
+    if status() == "ON":
+        varex.command_inout("AllStartAcq")
+        return "Collection started", 200
+    return 'Detector is not ready for commands', 412
+
+
+@app.route('/AllStopAcq')
+def stop_acquisition_all():
+    if status() == "MOVING":
+        varex.command_inout("AllStopAcq")
+        return "Collection stopped", 200
+    return 'Detector is not collecting', 412
+
+
 @app.route('/attribute', methods=['POST'])
-def set_param():
+def set_attribute():
     if status() == "ON":
         try:
             attribute_info = varex.attribute_query(request.form['attribute'])
@@ -51,6 +67,16 @@ def set_param():
         varex.write_attribute(request.form['attribute'], value)
         return "Attribute {} has been set to {}".format(request.form['attribute'], value)
     return 'Detector is not ready for commands', 412
+
+
+@app.route('/attribute/<attribute_name>')
+def get_attribute(attribute_name):
+    if status() == "ON":
+        try:
+            return str(varex.read_attribute(attribute_name).value), 200
+        except tango.DevFailed:
+            return "Attribute {} does not exist".format(request.form['attribute']), 400
+    return 'Detector is not currently reading', 412
 
 
 if __name__ == '__main__':
