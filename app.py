@@ -4,7 +4,7 @@ import tango
 
 app = Flask(__name__)
 
-device = "tango://131.169.215.66:10000/hibef/Varex/1"
+device = "tango://0.0.0.0:10000/hibef/Varex/1"
 varex = PyTango.DeviceProxy(device)
 
 
@@ -15,68 +15,52 @@ def status():
     except:
         return None
 
-
 @app.route('/StartAcq/<det>')
 def start_acquisition(det):
-    if status() == "ON":
-        varex.command_inout("StartAcq{}".format(det))
-        return "Collection started", 200
-    return 'Detector is not ready for commands', 412
+    varex.command_inout("StartAcq{}".format(det))
+    return "Collection started", 200
 
 
 @app.route('/StopAcq/<det>')
 def stop_acquisition(det):
-    if status() == "MOVING":
-        varex.command_inout("StopAcq{}".format(det))
-        return "Collection stopped", 200
-    return 'Detector is not collecting', 412
-
+    varex.command_inout("StopAcq{}".format(det))
+    return "Collection stopped", 200
 
 @app.route('/AllStartAcq')
 def start_acquisition_all():
-    if status() == "ON":
-        varex.command_inout("AllStartAcq")
-        return "Collection started", 200
-    return 'Detector is not ready for commands', 412
-
+    varex.command_inout("AllStartAcq")
+    return "Collection started", 200
 
 @app.route('/AllStopAcq')
 def stop_acquisition_all():
-    if status() == "MOVING":
-        varex.command_inout("AllStopAcq")
-        return "Collection stopped", 200
-    return 'Detector is not collecting', 412
-
+    varex.command_inout("AllStopAcq")
+    return "Collection stopped", 200
 
 @app.route('/attribute', methods=['POST'])
 def set_attribute():
-    if status() == "ON":
+    try:
+        attribute_info = varex.attribute_query(request.form['attribute'])
+    except tango.DevFailed:
+        return "Attribute {} does not exist".format(request.form['attribute']), 400
+
+    if "d" in attribute_info.format or "f" in attribute_info.format:
         try:
-            attribute_info = varex.attribute_query(request.form['attribute'])
-        except tango.DevFailed:
-            return "Attribute {} does not exist".format(request.form['attribute']), 400
+            value = float(request.form['value'])
+        except ValueError:
+            return "Value format is incorrect", 400
+    else:
+        value = request.form['value']
 
-        if "d" in attribute_info.format or "f" in attribute_info.format:
-            try:
-                value = float(request.form['value'])
-            except ValueError:
-                return "Value format is incorrect", 400
-        else:
-            value = request.form['value']
-
-        varex.write_attribute(request.form['attribute'], value)
-        return "Attribute {} has been set to {}".format(request.form['attribute'], value)
-    return 'Detector is not ready for commands', 412
+    varex.write_attribute(request.form['attribute'], value)
+    return "Attribute {} has been set to {}".format(request.form['attribute'], value)
 
 
 @app.route('/attribute/<attribute_name>')
 def get_attribute(attribute_name):
-    if status() == "ON":
-        try:
-            return str(varex.read_attribute(attribute_name).value), 200
-        except tango.DevFailed:
-            return "Attribute {} does not exist".format(request.form['attribute']), 400
-    return 'Detector is not currently reading', 412
+    try:
+        return str(varex.read_attribute(attribute_name).value), 200
+    except tango.DevFailed:
+        return "Attribute {} does not exist".format(request.form['attribute']), 400
 
 
 if __name__ == '__main__':
